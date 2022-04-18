@@ -10,19 +10,21 @@ public class Regexp {
 
     static {
 
-        lex.put("VAR", Pattern.compile("^[a-z][a-z0-9]*"));
+        lex.put("KEY_WORD_VAR", Pattern.compile("VAR"));
+        lex.put("VARIABLE", Pattern.compile("[a-z][a-z0-9]*"));
         lex.put("DIGIT", Pattern.compile("^0|([1-9][0-9]*)"));
         lex.put("IF", Pattern.compile("if"));
         lex.put("ELSE", Pattern.compile("else"));
         lex.put("FOR", Pattern.compile("for"));
         lex.put("COMMENT", Pattern.compile("//"));
         lex.put("ASSIGN", Pattern.compile("="));
+        lex.put("ADD", Pattern.compile("\\+"));
     }
 
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        // String testString = "var size = 100";
+        // String testString = "VAR size = 100 + 1";
 
 
         List<String> stringList = new LinkedList<>();
@@ -45,6 +47,8 @@ public class Regexp {
                 while (matcher.find()) {
                     String currentValue = stringList.get(position).substring(matcher.start(), matcher.end());
                     tokenList.add(new Token(key, currentValue));
+
+
                 }
 
             }
@@ -73,6 +77,7 @@ class Token {
                 "type='" + type + '\'' +
                 ", value='" + value + '\'' +
                 '}';
+
     }
 
 }
