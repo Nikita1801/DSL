@@ -6,25 +6,6 @@ import java.util.regex.*;
 public class Regexp {
 
 
-    private static Map<String, Pattern> lex = new HashMap<>();
-    private static List<String> charsToRemove = new ArrayList<>();
-
-    static {
-
-        lex.put("KEY_WORD_VAR", Pattern.compile("VAR"));
-        lex.put("VARIABLE", Pattern.compile("[a-z][a-z0-9]*"));
-        lex.put("DIGIT", Pattern.compile("^0|([1-9][0-9]*)"));
-        lex.put("IF", Pattern.compile("if"));
-        lex.put("ELSE", Pattern.compile("else"));
-        lex.put("FOR", Pattern.compile("for"));
-        lex.put("COMMENT", Pattern.compile("//"));
-        lex.put("ASSIGN", Pattern.compile("="));
-        lex.put("ADD", Pattern.compile("\\+"));
-
-
-        charsToRemove.add(" ");
-    }
-
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -42,6 +23,47 @@ public class Regexp {
                 break;
             }
         }
+
+        //use lexer to get tokens
+        Lexer lex = new Lexer();
+        tokenList = lex.lexTheInput(stringList);
+        for (Token token : tokenList) {
+            System.out.println(token);
+        }
+
+        //user parser
+        Parser parser = new Parser();
+        Boolean bool = parser.parse(tokenList);
+        System.out.println("Parser: " + bool);
+    }
+
+
+}
+
+
+class Lexer{
+    private static Map<String, Pattern> lex = new HashMap<>();
+    private static List<String> charsToRemove = new ArrayList<>();
+
+    static {
+
+        lex.put("KEY_WORD_VAR", Pattern.compile("VAR"));
+        lex.put("VARIABLE", Pattern.compile("[a-z][a-z0-9]*"));
+        lex.put("DIGIT", Pattern.compile("^0|([1-9][0-9]*)"));
+        lex.put("IF", Pattern.compile("if"));
+        lex.put("ELSE", Pattern.compile("else"));
+        lex.put("FOR", Pattern.compile("for"));
+        lex.put("COMMENT", Pattern.compile("//"));
+        lex.put("ASSIGN", Pattern.compile("="));
+        lex.put("ADD", Pattern.compile("\\+"));
+        lex.put("Error: unknown element", Pattern.compile("[$.`'{}<>]"));
+
+
+        charsToRemove.add(" ");
+    }
+
+    public List<Token> lexTheInput(List<String> stringList) {
+        List<Token> tokenList = new ArrayList<>();
         for (int position = 0; position < stringList.size(); position++) {
 
             String commandLine = stringList.get(position);
@@ -55,9 +77,9 @@ public class Regexp {
                 //accum all symbols app to whitespace and skip all trailing whitespaces
                 for (int k = 0; true; k++) {
                     if (i - k >= 0 && commandLine.charAt(i - k) != ' ') {
-                        acc += commandLine.charAt(i-k);
-                    }else {
-                        i=i-k;
+                        acc += commandLine.charAt(i - k);
+                    } else {
+                        i = i - k;
                         break;
                     }
                 }
@@ -80,18 +102,13 @@ public class Regexp {
                     }
 
                 }
-                acc="";
+                acc = "";
 
             }
 
 
-
-
         }
-        for (Token token : tokenList) {
-            System.out.println(token);
-        }
-
+        return tokenList;
     }
 
     /***
@@ -119,6 +136,14 @@ class Token {
 
     }
 
+    public String getType() {
+        return type;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
     @Override
     public String toString() {
         return "Token{" +
@@ -128,4 +153,55 @@ class Token {
 
     }
 
+}
+
+class PairLexem {
+    public String tokenLeft;
+    public String tokenRight;
+
+    public PairLexem(String token1, String token2) {
+        this.tokenLeft = token1;
+        this.tokenRight = token2;
+    }
+}
+
+
+class Parser {
+
+    List<PairLexem> pairLexems = new ArrayList<>();
+
+    public Parser() {
+
+        pairLexems.add(new PairLexem("KEY_WORD_VAR", "VARIABLE"));
+        pairLexems.add(new PairLexem("VARIABLE", "ASSIGN"));
+        pairLexems.add(new PairLexem("ASSIGN", "DIGIT"));
+        pairLexems.add(new PairLexem("DIGIT", "ADD"));
+        pairLexems.add(new PairLexem("ADD", "DIGIT"));
+
+
+    }
+
+    private boolean isRightPairLexem(Token tokenLeft, Token tokenRight) {
+        for (PairLexem p : pairLexems) {
+            if((tokenRight.getType().equals(p.tokenRight)) && (tokenLeft.getType().equals(p.tokenLeft))){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean parse(List<Token> tokenList) {
+        if (tokenList == null) {
+            return true;
+        }
+        if (tokenList.stream().anyMatch(token -> token.getType().equals("Error: unknown element"))) {
+            return false;
+        }
+        for (int i = 0; i <= tokenList.size() - 2; i++) {
+            if (isRightPairLexem(tokenList.get(i + 1), tokenList.get(i)) == false) { // Reversed pair lexems
+                return false;
+            }
+        }
+        return true;
+    }
 }
