@@ -249,13 +249,20 @@ class Parser {
         pairLexems.add(new PairLexem("DIGIT", "ADD"));
         pairLexems.add(new PairLexem("DIGIT", "MULT"));
         pairLexems.add(new PairLexem("ADD", "DIGIT"));
+        pairLexems.add(new PairLexem("MINUS", "DIGIT"));
         pairLexems.add(new PairLexem("MULT", "DIGIT"));
+        pairLexems.add(new PairLexem("DIVIDE", "DIGIT"));
+
         pairLexems.add(new PairLexem("ADD", "VARIABLE"));
+        pairLexems.add(new PairLexem("MINUS", "VARIABLE"));
+        pairLexems.add(new PairLexem("DIVIDE", "VARIABLE"));
         pairLexems.add(new PairLexem("MULT", "VARIABLE"));
         pairLexems.add(new PairLexem("VARIABLE", "ADD"));
 
         pairLexems.add(new PairLexem("ADD", "OPEN_BRACKET"));
+        pairLexems.add(new PairLexem("MINUS", "OPEN_BRACKET"));
         pairLexems.add(new PairLexem("MULT", "OPEN_BRACKET"));
+        pairLexems.add(new PairLexem("DIVIDE", "OPEN_BRACKET"));
 
         pairLexems.add(new PairLexem("OPEN_BRACKET", "VARIABLE"));
         pairLexems.add(new PairLexem("OPEN_BRACKET", "DIGIT"));
@@ -264,7 +271,9 @@ class Parser {
         pairLexems.add(new PairLexem("DIGIT", "CLOSE_BRACKET"));
 
         pairLexems.add(new PairLexem("CLOSE_BRACKET", "ADD"));
+        pairLexems.add(new PairLexem("CLOSE_BRACKET", "MINUS"));
         pairLexems.add(new PairLexem("CLOSE_BRACKET", "MULT"));
+        pairLexems.add(new PairLexem("CLOSE_BRACKET", "DIVIDE"));
 
 
         pairLexems.add(new PairLexem("CLOSE_BRACKET", "END"));
@@ -454,13 +463,24 @@ class Machine {
                     double op2 = stack.pop().value;
                     stack.push(new VarHolder("", (op1 + op2)));
                     break;
+                case "MINUS": {
+                    double minusOp1 = stack.pop().value;
+                    double minusOp2 = stack.pop().value;
+                    stack.push(new VarHolder("", (minusOp1 * minusOp2)));
+                    break;
+                }
                 case "MULT": {
                     double multOp1 = stack.pop().value;
                     double multOp2 = stack.pop().value;
                     stack.push(new VarHolder("", (multOp1 * multOp2)));
                     break;
                 }
-                    // case equal
+                case "DIVIDE": {
+                    double divideOp1 = stack.pop().value;
+                    double divideOp2 = stack.pop().value;
+                    stack.push(new VarHolder("", (divideOp1 * divideOp2)));
+                    break;
+                }
                 case "ASSIGN": {
                     double opb = stack.pop().value;
                     String opa = stack.pop().name;
