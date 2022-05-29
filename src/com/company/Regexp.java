@@ -8,15 +8,30 @@ import java.util.regex.*;
 import java.util.stream.Collectors;
 
 public class Regexp {
+    /*
+    IF ( 5 < 6) { VAR a = 10 };
+    IF (3 > 7) {PRINT 5};
 
+    VAR a = 10 * 5;
+    IF (a > 40) {PRINT a - 5};
 
+    VAR a = 10;
+    WHILE (a > 2) { a = a -1};
+    PRINT a;
+
+    VAR abc = 100 + 5 * 2;
+    VAR result = 50;
+    PRINT abc;
+    PRINT result;
+
+    */
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
         // String testString = "VAR size = 100 + 1";
 
 
         List<String> stringList = new LinkedList<>();
-        List<Token> tokenList = new LinkedList<>();
+        List<List<Token>> tokenList = new LinkedList<>();
 
         for (int line = 0; true; line++) {
             stringList.add(line, scanner.nextLine());
@@ -30,23 +45,68 @@ public class Regexp {
         //use lexer to get tokens
         Lexer lex = new Lexer();
         tokenList = lex.lexTheInput(stringList);
-        for (Token token : tokenList) {
-            System.out.println(token);
+        Boolean bool = false;
+        for (List<Token> tokens : tokenList) {
+            System.out.println("____________________________");
+
+            System.out.println(Arrays.toString(tokens.toArray()));
+
+            //use parser
+            Parser parser = new Parser();
+            bool = parser.parse(tokens);
+            System.out.println("Parser: " + bool);
+            if(!bool) break;
+
+            System.out.println("____________________________");
+            System.out.println();
         }
 
-        //user parser
-        Parser parser = new Parser();
-        Boolean bool = parser.parse(tokenList);
-        System.out.println("Parser: " + bool);
-
-        if(bool){
-            ConvertToPolishNotation convertToPolishNotation = new ConvertToPolishNotation();
-            List<Token> polis = convertToPolishNotation.getPolish(tokenList);
-            System.out.println("Converted tokens to polish notation: " + polis);
-
+        if (bool) {
             Machine machine = new Machine();
-            String result = machine.vmachine(polis);
-            System.out.println("Machine result: " + result);
+            for (List<Token> tokens : tokenList) {
+                System.out.println("____________________________");
+
+                String result = "RESULT IS BLANK. MAYBE PROBLEM";
+                ConvertToPolishNotation convertToPolishNotation = new ConvertToPolishNotation();
+                if (tokens.stream().filter(x -> x.getType().equals("IF") || x.getType().equals("WHILE")).count() > 0) {
+                    System.out.println("The command contains special keyword IF or WHILE");
+                    // обработка токенов своеобразно для спец конструкций
+                    List<Token> reversed = convertToPolishNotation.prepareTokensByReverse(tokens);
+
+                    List<Token> toMachine = new ArrayList<>();
+                    toMachine.add(reversed.get(0));// it would be IF or WHILE
+
+                    //get condition and convert it to polis
+                    int indexOfOB = reversed.indexOf(reversed.stream().filter(t-> t.getType().equals("OPEN_BRACKET")).findFirst().get());
+                    int indexOfCB = reversed.indexOf(reversed.stream().filter(t-> t.getType().equals("CLOSE_BRACKET")).findFirst().get());
+                    List<Token> betweenBrackets = reversed.subList(indexOfOB+1,indexOfCB);// get all that  inside () in IF
+                    toMachine.add(reversed.get(indexOfOB));
+                    toMachine.addAll(convertToPolishNotation.getPolish(betweenBrackets));
+                    toMachine.add(reversed.get(indexOfCB));
+
+                    //get body and convert it to polis
+                    int indexOfCOB = reversed.indexOf(reversed.stream().filter(t-> t.getType().equals("OPEN_BRACE")).findFirst().get());
+                    int indexOfCCB = reversed.indexOf(reversed.stream().filter(t-> t.getType().equals("CLOSE_BRACE")).findFirst().get());
+                    List<Token> betweenCurledBrackets = reversed.subList(indexOfCOB+1,indexOfCCB);// get all that  inside {} in IF;
+                    toMachine.add(reversed.get(indexOfCOB));
+                    toMachine.addAll(convertToPolishNotation.getPolish(betweenCurledBrackets));
+                    toMachine.add(reversed.get(indexOfCCB));
+
+                    result = machine.vmachine(toMachine);
+
+
+
+                } else {
+                    List<Token> polis = convertToPolishNotation.getPolish(convertToPolishNotation.prepareTokensByReverse(tokens));
+                    System.out.println("Converted tokens to polish notation: " + polis);
+
+                    result = machine.vmachine(polis);
+                }
+                System.out.println("Machine result: " + result);
+
+                System.out.println("____________________________");
+                System.out.println();
+            }
         }
 
 
@@ -62,30 +122,36 @@ class TokenDescription {
     Pattern pattern;
 }
 
+@Getter
 class Lexer {
     private Map<String, TokenDescription> lex = new HashMap<>();
     //private static List<String> charsToRemove = new ArrayList<>();
 
 
+
     Lexer() {
 
         lex.put("KEY_WORD_VAR", TokenDescription.builder().pattern(Pattern.compile("VAR")).isAtomic(false).build());
-        lex.put("VARIABLE", TokenDescription.builder().pattern(Pattern.compile("[a-z][a-z0-9]*")).isAtomic(false).build());
+        lex.put("VARIABLE", TokenDescription.builder().pattern(Pattern.compile("[a-z][a-zA-Z0-9]*")).isAtomic(false).build());
         lex.put("END", TokenDescription.builder().pattern(Pattern.compile(";")).isAtomic(true).build());
         lex.put("DIGIT", TokenDescription.builder().pattern(Pattern.compile("^0|([1-9][0-9]*)")).isAtomic(false).build());
-        lex.put("IF", TokenDescription.builder().pattern(Pattern.compile("if")).isAtomic(false).build());
-        lex.put("ELSE", TokenDescription.builder().pattern(Pattern.compile("else")).isAtomic(false).build());
-        lex.put("FOR", TokenDescription.builder().pattern(Pattern.compile("for")).isAtomic(false).build());
         lex.put("COMMENT", TokenDescription.builder().pattern(Pattern.compile("//")).isAtomic(false).build());
         lex.put("ASSIGN", TokenDescription.builder().pattern(Pattern.compile("=")).isAtomic(true).build());
         lex.put("ADD", TokenDescription.builder().pattern(Pattern.compile("\\+")).isAtomic(true).build());
         lex.put("MINUS", TokenDescription.builder().pattern(Pattern.compile("\\-")).isAtomic(true).build());
         lex.put("MULT", TokenDescription.builder().pattern(Pattern.compile("\\*")).isAtomic(true).build());
         lex.put("DIVIDE", TokenDescription.builder().pattern(Pattern.compile("\\/")).isAtomic(true).build());
-        lex.put("Error: unknown element", TokenDescription.builder().pattern(Pattern.compile("[$.`'{}<>]")).isAtomic(false).build());
+        lex.put("Error: unknown element", TokenDescription.builder().pattern(Pattern.compile("[$.`']")).isAtomic(false).build());
         lex.put("OPEN_BRACKET", TokenDescription.builder().pattern(Pattern.compile("[\\(]")).isAtomic(true).build());
         lex.put("CLOSE_BRACKET", TokenDescription.builder().pattern(Pattern.compile("[\\)]")).isAtomic(true).build());
         lex.put("PRINT", TokenDescription.builder().pattern(Pattern.compile("PRINT")).isAtomic(true).build());
+        lex.put("IF", TokenDescription.builder().pattern(Pattern.compile("IF")).isAtomic(false).build());
+        lex.put("WHILE", TokenDescription.builder().pattern(Pattern.compile("WHILE")).isAtomic(false).build());
+        lex.put("LESS", TokenDescription.builder().pattern(Pattern.compile("<")).isAtomic(true).build());
+        lex.put("MORE", TokenDescription.builder().pattern(Pattern.compile(">")).isAtomic(true).build());
+
+        lex.put("OPEN_BRACE", TokenDescription.builder().pattern(Pattern.compile("\\{")).isAtomic(true).build());
+        lex.put("CLOSE_BRACE", TokenDescription.builder().pattern(Pattern.compile("\\}")).isAtomic(true).build());
 
 
         //charsToRemove.add(" ");
@@ -105,16 +171,23 @@ class Lexer {
         return Optional.empty();
     }
 
-    public List<Token> lexTheInput(List<String> stringList) {
-        List<Token> tokenList = new ArrayList<>();
+    public List<List<Token>> lexTheInput(List<String> stringList) {
+        List<List<Token>> tokenList = new ArrayList<>();
 
         //split all input by ;
-        String allInp = stringList.stream().reduce((accumulator, inpString) -> accumulator+inpString).get();
-        List<String> inputFormatted = Arrays.asList(allInp.split(";")).stream().map(inp -> inp+";").collect(Collectors.toList());
+        String allInp = stringList.stream().reduce((accumulator, inpString) -> accumulator + inpString).get();
+        List<String> inputFormatted = Arrays.asList(allInp.split(";")).stream().map(inp -> inp + ";").collect(Collectors.toList());
 
         for (int position = 0; position < inputFormatted.size(); position++) {
 
             String commandLine = inputFormatted.get(position);
+            if (commandLine.isBlank()) {
+                continue;
+            }
+
+            //adding new list of token from current line to global list
+            List<Token> tokensInLine = new ArrayList<>();
+            tokenList.add(tokensInLine);
 //            commandLine = prepareString(commandLine);
 //            System.out.println(commandLine);
 
@@ -125,7 +198,7 @@ class Lexer {
                 //check if char is already can be atomic token
                 Optional<Token> atomic = detectAtomic(c);
                 if (atomic.isPresent()) {
-                    tokenList.add(atomic.get());
+                    tokensInLine.add(atomic.get());
                     continue;
                 }
 
@@ -169,7 +242,7 @@ class Lexer {
 
                     while (matcher.find()) {
                         String currentValue = acc.substring(matcher.start(), matcher.end());
-                        tokenList.add(new Token(key, currentValue));
+                        tokensInLine.add(new Token(key, currentValue));
                     }
 
                 }
@@ -245,9 +318,14 @@ class Parser {
         pairLexems.add(new PairLexem("KEY_WORD_VAR", "VARIABLE"));
         pairLexems.add(new PairLexem("VARIABLE", "ASSIGN"));
         pairLexems.add(new PairLexem("ASSIGN", "DIGIT"));
+        pairLexems.add(new PairLexem("ASSIGN", "VARIABLE"));
         pairLexems.add(new PairLexem("ASSIGN", "OPEN_BRACKET"));
+
         pairLexems.add(new PairLexem("DIGIT", "ADD"));
+        pairLexems.add(new PairLexem("DIGIT", "MINUS"));
         pairLexems.add(new PairLexem("DIGIT", "MULT"));
+        pairLexems.add(new PairLexem("DIGIT", "DIVIDE"));
+
         pairLexems.add(new PairLexem("ADD", "DIGIT"));
         pairLexems.add(new PairLexem("MINUS", "DIGIT"));
         pairLexems.add(new PairLexem("MULT", "DIGIT"));
@@ -257,7 +335,11 @@ class Parser {
         pairLexems.add(new PairLexem("MINUS", "VARIABLE"));
         pairLexems.add(new PairLexem("DIVIDE", "VARIABLE"));
         pairLexems.add(new PairLexem("MULT", "VARIABLE"));
+
         pairLexems.add(new PairLexem("VARIABLE", "ADD"));
+        pairLexems.add(new PairLexem("VARIABLE", "MINUS"));
+        pairLexems.add(new PairLexem("VARIABLE", "MULT"));
+        pairLexems.add(new PairLexem("VARIABLE", "DIVIDE"));
 
         pairLexems.add(new PairLexem("ADD", "OPEN_BRACKET"));
         pairLexems.add(new PairLexem("MINUS", "OPEN_BRACKET"));
@@ -287,8 +369,35 @@ class Parser {
         pairLexems.add(new PairLexem("PRINT", "VARIABLE"));
         pairLexems.add(new PairLexem("PRINT", "DIGIT"));
 
+        // IF
+        pairLexems.add(new PairLexem("IF", "OPEN_BRACKET"));
+        pairLexems.add(new PairLexem("OPEN_BRACKET", "DIGIT"));
+        pairLexems.add(new PairLexem("OPEN_BRACKET", "VARIABLE"));
+        pairLexems.add(new PairLexem("VARIABLE", "LESS"));
+        pairLexems.add(new PairLexem("VARIABLE", "MORE"));
+        pairLexems.add(new PairLexem("LESS", "VARIABLE"));
+        pairLexems.add(new PairLexem("LESS", "DIGIT"));
+        pairLexems.add(new PairLexem("DIGIT", "LESS"));
+        pairLexems.add(new PairLexem("DIGIT", "MORE"));
+        pairLexems.add(new PairLexem("MORE", "DIGIT"));
+        pairLexems.add(new PairLexem("MORE", "VARIABLE"));
+        pairLexems.add(new PairLexem("DIGIT", "CLOSE_BRACKET"));
+        pairLexems.add(new PairLexem("CLOSE_BRACKET", "OPEN_BRACE"));
+        pairLexems.add(new PairLexem("VARIABLE", "CLOSE_BRACKET"));
+        pairLexems.add(new PairLexem("OPEN_BRACE", "PRINT")); // ???
+        pairLexems.add(new PairLexem("OPEN_BRACE", "CLOSE_BRACE")); // ???
 
+        pairLexems.add(new PairLexem("OPEN_BRACE", "KEY_WORD_VAR"));
+        pairLexems.add(new PairLexem("OPEN_BRACE", "VARIABLE"));
 
+        pairLexems.add(new PairLexem("DIGIT", "CLOSE_BRACE"));
+        pairLexems.add(new PairLexem("VARIABLE", "CLOSE_BRACE"));
+        pairLexems.add(new PairLexem("CLOSE_BRACE", "END"));
+        pairLexems.add(new PairLexem("END", "IF"));
+
+        // WHILE
+        pairLexems.add(new PairLexem("WHILE", "OPEN_BRACKET"));
+        pairLexems.add(new PairLexem("END", "WHILE"));
 
 
 // VAR abc = 100 + ( 5 + 1 )
@@ -318,52 +427,127 @@ class Parser {
             }
         }
         return true;
+
+
     }
 
     public boolean bracketsRight(List<Token> tokenList) {
         int openBrackets = 0;
         int closeBrackets = 0;
 
-        for (Token token: tokenList) {
-            switch (token.getType()){
-                case "OPEN_BRACKET": { openBrackets++; break;}
-                case "CLOSE_BRACKET": {closeBrackets++; break;}
-                default: break;
+        for (Token token : tokenList) {
+            switch (token.getType()) {
+                case "OPEN_BRACKET": {
+                    openBrackets++;
+                    break;
+                }
+                case "CLOSE_BRACKET": {
+                    closeBrackets++;
+                    break;
+                }
+                default:
+                    break;
             }
         }
         if (openBrackets == closeBrackets) {
             return true;
+        } else {
+            return false;
         }
-        else {return false;}
     }
 }
 
 
 class ConvertToPolishNotation {
     public int priority(Token token) {
-        if (token.getType().equals("DIVIDE") || token.getType().equals("MULT")) {return 10;}
-        if (token.getType().equals("ADD") || token.getType().equals("MINUS")) {return 9;}
-        if (token.getType().equals("ASSIGN") || token.getType().equals("PRINT")) {return 8;}
-        else { return 0; }
+        if (token.getType().equals("DIVIDE") || token.getType().equals("MULT")) {
+            return 10;
+        }
+        if (token.getType().equals("ADD") || token.getType().equals("MINUS")) {
+            return 9;
+        }
+        if (token.getType().equals("LESS") || token.getType().equals("MORE") ) {
+            return 6;
+        }
+        if (token.getType().equals("ASSIGN") || token.getType().equals("PRINT")) {
+            return 2;
+        } else {
+            return 0;
+        }
 
     }
 
-    public List<Token> getPolish (List<Token> nePolish){
+    public List<Token> getPolish(List<Token> nePolish) {
         boolean toPrint = false;
 
+//        List<Token> preparedNePolish = prepareTokensByReverse(nePolish);
+
+        List<Token> alreadyPolish = new ArrayList<Token>();
+        Stack<Token> stack = new Stack<Token>();
+
+        for (Token token : nePolish) {
+            if (token.getType().equals("PRINT")) {
+                toPrint = true;
+            } else if (token.getType().equals("END")) {
+                while (stack.size() != 0) {
+                    alreadyPolish.add(stack.pop());
+                }
+            } else if (token.getType().equals("DIGIT") || token.getType().equals("VARIABLE")) {
+                alreadyPolish.add(token);
+            } else if (token.getType().equals("OPEN_BRACKETS")) {
+                stack.push(token);
+            } else if (token.getType().equals("CLOSE_BRACKETS")) {
+                while (!stack.peek().getType().equals("OPEN_BRACKET") || stack.size() == 0) {
+                    alreadyPolish.add(stack.pop());
+                    stack.pop();
+                }
+            }
+            //else if (token.getType() == "")
+            else if (token.getType().equals("ADD") || token.getType().equals("MINUS") || token.getType().equals("DIVIDE")
+                    || token.getType().equals("MULT") || token.getType().equals("ASSIGN") ||
+                    token.getType().equals("LESS") || token.getType().equals("MORE") ) {
+                if (stack.size() == 0) {
+                    stack.push(token);
+                } else if (stack.peek().getType().equals("OPEN_BRACKETS")) {
+                    stack.push(token);
+                } else if (priority(token) <= priority(stack.peek())) {
+                    while (stack.size() != 0 && priority(token) <= priority(stack.peek())) {
+                        if (stack.peek().getType().equals("OPEN_BRACKET")) {
+                            break;
+                        }
+                        alreadyPolish.add(stack.pop());
+                    }
+                    stack.push(token);
+                } else if (priority(token) > priority(stack.peek())) {
+                    stack.push(token);
+                }
+            }
+
+
+        }
+        while (stack.size() != 0) {
+            alreadyPolish.add(stack.pop());
+        }
+        if (toPrint) {
+            alreadyPolish.add(new Token("PRINT", "PRINT"));
+        }
+        return alreadyPolish;
+    }
+
+    public List<Token> prepareTokensByReverse(List<Token> nePolish) {
         List<Token> preparedNePolish = new ArrayList<>();
 
         List<Token> buffer = new ArrayList<>();
-        for (int i = 0; i<nePolish.size(); i++){
-            if(i == 0) continue;
-            if(nePolish.get(i).getType().equals("END")){
+        for (int i = 0; i < nePolish.size(); i++) {
+            if (i == 0) continue;
+            if (nePolish.get(i).getType().equals("END")) {
                 buffer.add(0, new Token("END", ";"));
                 Collections.reverse(buffer);
                 preparedNePolish.addAll(buffer);
                 buffer = new ArrayList<>();
                 continue;
             }
-            if(i == nePolish.size()-1){
+            if (i == nePolish.size() - 1) {
                 buffer.add(0, new Token("END", ";"));
                 buffer.add(nePolish.get(i));
                 Collections.reverse(buffer);
@@ -374,43 +558,7 @@ class ConvertToPolishNotation {
 
             buffer.add(nePolish.get(i));
         }
-
-        List<Token> alreadyPolish = new ArrayList<Token>();
-        Stack<Token> stack = new Stack<Token>();
-
-        for (Token token : preparedNePolish) {
-            if (token.getType().equals("PRINT")) {toPrint = true;}
-            else if (token.getType().equals("END") ) { while(stack.size() != 0) {alreadyPolish.add(stack.pop());}}
-            else if (token.getType().equals("DIGIT") || token.getType().equals("VARIABLE")) { alreadyPolish.add(token);}
-            else if (token.getType().equals("OPEN_BRACKETS")) { stack.push(token);}
-            else if (token.getType().equals("CLOSE_BRACKETS")) {
-                while (!stack.peek().getType().equals("OPEN_BRACKET")  || stack.size() == 0) {
-                    alreadyPolish.add(stack.pop());
-                    stack.pop();
-                }
-            }
-            //else if (token.getType() == "")
-            else if (token.getType().equals("ADD") || token.getType().equals("MINUS") || token.getType().equals("DIVIDE")
-                    || token.getType().equals("MULT") || token.getType().equals("ASSIGN") ) {
-                if (stack.size() == 0) {  stack.push(token); }
-                else if ( stack.peek().getType().equals("OPEN_BRACKETS")) { stack.push(token); }
-                else if (priority(token) <= priority(stack.peek())) {
-                    while (stack.size() != 0 && priority(token) <= priority(stack.peek())) {
-                        if (stack.peek().getType().equals("OPEN_BRACKET")) { break; }
-                        alreadyPolish.add(stack.pop());
-                    }
-                    stack.push(token);
-                }
-                else if (priority(token) > priority(stack.peek())) {stack.push(token);}
-            }
-
-
-        }
-        if (toPrint) { alreadyPolish.add(new Token("PRINT", "PRINT"));}
-        while (stack.size() != 0) {
-            alreadyPolish.add(stack.pop());
-        }
-        return alreadyPolish;
+        return preparedNePolish;
     }
 
 }
@@ -420,39 +568,62 @@ class Machine {
     private List<VarHolder> vars = new ArrayList<VarHolder>();
 
     boolean isExist(String var) {
-        for (VarHolder v: vars) {
-            if (v.name.equals(var)) {return true;}
+        for (VarHolder v : vars) {
+            if (v.name.equals(var)) {
+                return true;
+            }
         }
         return false;
     }
+
     double getVarHolderByName(String type) {
         for (VarHolder var : vars) {
-            if (var.name.equals(type)) {return var.value;}
+            if (var.name.equals(type)) {
+                return var.value;
+            }
         }
         return 0f;
     }
 
     int getVarHolderByNameIndex(String type) {
-        for (int i = 0; i<vars.size(); i++) {
-            if (vars.get(i).name.equals(type)) {return i;}
+        for (int i = 0; i < vars.size(); i++) {
+            if (vars.get(i).name.equals(type)) {
+                return i;
+            }
         }
         return -1;
     }
+
+//    public boolean checkForStatementResult() {
+//
+//    }
+
+
     public String vmachine(List<Token> polishString) {
         String output = "";
-        for (Token token: polishString) {
-            switch (token.getType()){
+
+        if (polishString.stream().filter(token -> token.getType().equals("IF")).count() > 0){
+            output = produceIfLogic(polishString);
+            return output;
+        }
+        if (polishString.stream().filter(token -> token.getType().equals("WHILE")).count() > 0){
+            output = produceWhileLogic(polishString);
+            return output;
+        }
+
+        for (Token token : polishString) {
+            switch (token.getType()) {
                 case "PRINT":
                     output += stack.pop().value;
                     break;
-                case "VARIABLE":
-                {
-                    if(!isExist(token.getValue())){
-                        stack.push(new VarHolder( token.getValue(), 0f));
+                case "VARIABLE": {
+                    if (!isExist(token.getValue())) {
+                        stack.push(new VarHolder(token.getValue(), 0f));
                         vars.add(new VarHolder(token.getValue(), 0f));
+                    } else {
+                        stack.push(new VarHolder(token.getValue(), getVarHolderByName(token.getValue())));
                     }
-                    else { stack.push(new VarHolder( token.getValue(), getVarHolderByName(token.getValue()))); }
-                break;
+                    break;
                 }
                 case "DIGIT":
                     stack.push(new VarHolder("", Double.parseDouble(token.getValue())));
@@ -466,7 +637,7 @@ class Machine {
                 case "MINUS": {
                     double minusOp1 = stack.pop().value;
                     double minusOp2 = stack.pop().value;
-                    stack.push(new VarHolder("", (minusOp1 * minusOp2)));
+                    stack.push(new VarHolder("", (minusOp2 - minusOp1)));
                     break;
                 }
                 case "MULT": {
@@ -478,7 +649,7 @@ class Machine {
                 case "DIVIDE": {
                     double divideOp1 = stack.pop().value;
                     double divideOp2 = stack.pop().value;
-                    stack.push(new VarHolder("", (divideOp1 * divideOp2)));
+                    stack.push(new VarHolder("", (divideOp2 / divideOp1)));
                     break;
                 }
                 case "ASSIGN": {
@@ -487,12 +658,92 @@ class Machine {
 
                     int a = getVarHolderByNameIndex(opa);
                     vars.set(a, new VarHolder(opa, opb));
+                    break;
                 }
-
-                case "END": {stack.clear(); break;}
-                default: { break; }
+                case "LESS":{
+                    double opLess1 = stack.pop().value;
+                    double opLess2 = stack.pop().value;
+                    stack.push(new VarHolder("", opLess2<opLess1 ? 1 : -1 ));
+                    break;
+                }
+                case "MORE":{
+                    double opMore1 = stack.pop().value;
+                    double opMore2 = stack.pop().value;
+                    stack.push(new VarHolder("", opMore2>opMore1 ? 1 : -1 ));
+                    break;
+                }
+                case "END": {
+                    stack.clear();
+                    break;
+                }
+                default: {
+                    break;
+                }
             }
         }
         return output;
     }
+
+    private String produceWhileLogic(List<Token> polishString) {
+        Token print = new Token("PRINT", "PRINT");
+        Token end = new Token("END", ";");
+
+        List<Token> betweenBrackets = getConditionTokensExpression(polishString);
+        List<Token> betweenCurledBrackets = getBodyBetweenCurledBrackets(polishString);
+
+        betweenBrackets = betweenBrackets.stream().filter(token -> !token.getType().equals("END")).collect(Collectors.toList());
+        betweenBrackets.add(print);
+        betweenBrackets.add(end);
+
+        betweenBrackets.add(end);
+
+        Boolean resOfIfConditionCheck = Double.parseDouble(this.vmachine(betweenBrackets)) > 0;
+
+        String res = "";
+        while (resOfIfConditionCheck){
+
+            res += this.vmachine(betweenCurledBrackets) + " ";
+            resOfIfConditionCheck = Double.parseDouble(this.vmachine(betweenBrackets)) > 0;
+        }
+
+        return res;
+    }
+
+    private String produceIfLogic(List<Token> polishString) {
+        Token print = new Token("PRINT", "PRINT");
+        Token end = new Token("END", ";");
+
+        List<Token> betweenBrackets = getConditionTokensExpression(polishString);
+        List<Token> betweenCurledBrackets = getBodyBetweenCurledBrackets(polishString);
+
+        betweenBrackets = betweenBrackets.stream().filter(token -> !token.getType().equals("END")).collect(Collectors.toList());
+        betweenBrackets.add(print);
+        betweenBrackets.add(end);
+
+        betweenBrackets.add(end);
+
+        Boolean resOfIfConditionCheck = Double.parseDouble(this.vmachine(betweenBrackets)) > 0;
+
+        if(resOfIfConditionCheck){
+            return this.vmachine(betweenCurledBrackets);
+        }
+
+        return "";
+    }
+
+    private List<Token> getBodyBetweenCurledBrackets(List<Token> polishString) {
+        //get body and convert it to polis
+        int indexOfCOB = polishString.indexOf(polishString.stream().filter(t-> t.getType().equals("OPEN_BRACE")).findFirst().get());
+        int indexOfCCB = polishString.indexOf(polishString.stream().filter(t-> t.getType().equals("CLOSE_BRACE")).findFirst().get());
+        return polishString.subList(indexOfCOB+1,indexOfCCB);// get all that  inside {} in IF;
+    }
+
+    private List<Token> getConditionTokensExpression(List<Token> polishString) {
+        //get condition and convert it to polis
+        int indexOfOB = polishString.indexOf(polishString.stream().filter(t-> t.getType().equals("OPEN_BRACKET")).findFirst().get());
+        int indexOfCB = polishString.indexOf(polishString.stream().filter(t-> t.getType().equals("CLOSE_BRACKET")).findFirst().get());
+        return polishString.subList(indexOfOB+1,indexOfCB);// get all that  inside () in IF
+    }
+
 }
+
