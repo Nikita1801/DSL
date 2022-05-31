@@ -24,6 +24,14 @@ public class Regexp {
     PRINT abc;
     PRINT result;
 
+    LINKEDLIST a;
+    a ADD 2;
+    a ADD 3;
+    LISTOUT a;
+    a DELETE 3;
+    a CONTAINS 2;
+    LISTOUT a;
+
     */
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -68,7 +76,11 @@ public class Regexp {
 
                 String result = "RESULT IS BLANK. MAYBE PROBLEM";
                 ConvertToPolishNotation convertToPolishNotation = new ConvertToPolishNotation();
-                if (tokens.stream().filter(x -> x.getType().equals("IF") || x.getType().equals("WHILE")).count() > 0) {
+                if (tokens.stream().filter(x -> x.getType().startsWith("LINKED_LIST")).count()>0){
+                    Collections.reverse(tokens);
+                    result = machine.vmachine(tokens);
+                }
+                else if (tokens.stream().filter(x -> x.getType().equals("IF") || x.getType().equals("WHILE")).count() > 0) {
                     System.out.println("The command contains special keyword IF or WHILE");
                     // обработка токенов своеобразно для спец конструкций
                     List<Token> reversed = convertToPolishNotation.prepareTokensByReverse(tokens);
@@ -152,6 +164,12 @@ class Lexer {
 
         lex.put("OPEN_BRACE", TokenDescription.builder().pattern(Pattern.compile("\\{")).isAtomic(true).build());
         lex.put("CLOSE_BRACE", TokenDescription.builder().pattern(Pattern.compile("\\}")).isAtomic(true).build());
+        //LinkedList
+        lex.put("LINKED_LIST", TokenDescription.builder().pattern(Pattern.compile("LINKEDLIST")).isAtomic(false).build());
+        lex.put("LINKED_LIST_ADD", TokenDescription.builder().pattern(Pattern.compile("ADD")).isAtomic(false).build());
+        lex.put("LINKED_LIST_DELETE", TokenDescription.builder().pattern(Pattern.compile("DELETE")).isAtomic(false).build());
+        lex.put("LINKED_LIST_CONTAINS", TokenDescription.builder().pattern(Pattern.compile("CONTAINS")).isAtomic(false).build());
+        lex.put("LINKED_LIST_PRINTLL", TokenDescription.builder().pattern(Pattern.compile("LISTOUT")).isAtomic(false).build());
 
 
         //charsToRemove.add(" ");
@@ -384,8 +402,8 @@ class Parser {
         pairLexems.add(new PairLexem("DIGIT", "CLOSE_BRACKET"));
         pairLexems.add(new PairLexem("CLOSE_BRACKET", "OPEN_BRACE"));
         pairLexems.add(new PairLexem("VARIABLE", "CLOSE_BRACKET"));
-        pairLexems.add(new PairLexem("OPEN_BRACE", "PRINT")); // ???
-        pairLexems.add(new PairLexem("OPEN_BRACE", "CLOSE_BRACE")); // ???
+        pairLexems.add(new PairLexem("OPEN_BRACE", "PRINT"));
+        pairLexems.add(new PairLexem("OPEN_BRACE", "CLOSE_BRACE"));
 
         pairLexems.add(new PairLexem("OPEN_BRACE", "KEY_WORD_VAR"));
         pairLexems.add(new PairLexem("OPEN_BRACE", "VARIABLE"));
@@ -398,6 +416,23 @@ class Parser {
         // WHILE
         pairLexems.add(new PairLexem("WHILE", "OPEN_BRACKET"));
         pairLexems.add(new PairLexem("END", "WHILE"));
+
+        // LINKED LIST
+        pairLexems.add(new PairLexem("END", "LINKED_LIST"));
+        pairLexems.add(new PairLexem("LINKED_LIST", "VARIABLE"));
+
+        pairLexems.add(new PairLexem("VARIABLE", "LINKED_LIST_DELETE"));
+        pairLexems.add(new PairLexem("VARIABLE", "LINKED_LIST_ADD"));
+        pairLexems.add(new PairLexem("VARIABLE", "LINKED_LIST_CONTAINS"));
+
+        pairLexems.add(new PairLexem("LINKED_LIST_PRINTLL", "VARIABLE"));
+
+        pairLexems.add(new PairLexem("LINKED_LIST_ADD", "VARIABLE"));
+        pairLexems.add(new PairLexem("LINKED_LIST_DELETE", "VARIABLE"));
+        pairLexems.add(new PairLexem("LINKED_LIST_CONTAINS", "VARIABLE"));
+        pairLexems.add(new PairLexem("LINKED_LIST_ADD", "DIGIT"));
+        pairLexems.add(new PairLexem("LINKED_LIST_DELETE", "DIGIT"));
+        pairLexems.add(new PairLexem("LINKED_LIST_CONTAINS", "DIGIT"));
 
 
 // VAR abc = 100 + ( 5 + 1 )
@@ -469,7 +504,7 @@ class ConvertToPolishNotation {
         if (token.getType().equals("LESS") || token.getType().equals("MORE") ) {
             return 6;
         }
-        if (token.getType().equals("ASSIGN") || token.getType().equals("PRINT")) {
+        if (token.getType().equals("ASSIGN") || token.getType().equals("PRINT") ) {
             return 2;
         } else {
             return 0;
@@ -566,6 +601,7 @@ class ConvertToPolishNotation {
 class Machine {
     private Stack<VarHolder> stack = new Stack<VarHolder>();
     private List<VarHolder> vars = new ArrayList<VarHolder>();
+    private List<MyLinkedList> lists = new ArrayList<>();
 
     boolean isExist(String var) {
         for (VarHolder v : vars) {
@@ -608,6 +644,36 @@ class Machine {
         }
         if (polishString.stream().filter(token -> token.getType().equals("WHILE")).count() > 0){
             output = produceWhileLogic(polishString);
+            return output;
+        }
+
+        if (polishString.stream().filter(token -> token.getType().equals("LINKED_LIST")).count() > 0){
+            String nameOfList = polishString.stream().filter(token -> token.getType().equals("VARIABLE")).findFirst().get().getValue();
+            lists.add(new MyLinkedList(nameOfList));
+            return output;
+        }
+
+        if(polishString.stream().filter(token -> token.getType().equals("LINKED_LIST_ADD")).count() > 0){
+            MyLinkedList list = getMyListByName(polishString.get(0).getValue());
+            list.add(Double.parseDouble(polishString.get(2).getValue()));
+            return output;
+        }
+
+        if(polishString.stream().filter(token -> token.getType().equals("LINKED_LIST_DELETE")).count() > 0){
+            MyLinkedList list = getMyListByName(polishString.get(0).getValue());
+            list.delete(Double.parseDouble(polishString.get(2).getValue()));
+            return output;
+        }
+
+        if(polishString.stream().filter(token -> token.getType().equals("LINKED_LIST_CONTAINS")).count() > 0){
+            MyLinkedList list = getMyListByName(polishString.get(0).getValue());
+            output = "Element " + polishString.get(2).getValue() + " is in List: "+list.contains(Double.parseDouble(polishString.get(2).getValue()));
+            return output;
+        }
+
+        if(polishString.stream().filter(token -> token.getType().equals("LINKED_LIST_PRINTLL")).count() > 0){
+            MyLinkedList list = getMyListByName(polishString.get(1).getValue());
+            list.print();
             return output;
         }
 
@@ -683,6 +749,11 @@ class Machine {
         }
         return output;
     }
+
+    private MyLinkedList getMyListByName(String listName) {
+        return lists.stream().filter(list -> list.name.equals(listName)).findFirst().get();
+    }
+
 
     private String produceWhileLogic(List<Token> polishString) {
         Token print = new Token("PRINT", "PRINT");
